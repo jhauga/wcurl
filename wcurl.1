@@ -17,8 +17,8 @@
 
 \fBwcurl \-h|\--help\fP
 .SH DESCRIPTION
-\fBwcurl\fP is a simple curl wrapper which lets you use curl to download files
-without having to remember any parameters.
+\fBwcurl\fP is a simple curl wrapper which lets you use curl to download files or
+reuse complex curl calls without having to remember any parameters.
 
 Simply call \fBwcurl\fP with a list of URLs you want to download and \fBwcurl\fP
 picks sane defaults.
@@ -26,6 +26,11 @@ picks sane defaults.
 If you need anything more complex, you can provide any of curl\(aqs supported
 parameters via the \fB\--curl\-options\fP option. Just beware that you likely
 should be using curl directly if your use case is not covered.
+
+When using \fB\-r\fP or \fB\--run\-save\fP to execute a saved curl call, wcurl's default
+behavior is disabled. Instead, curl is invoked directly with only the saved
+options, allowing you to reuse exact curl command combinations without any
+added defaults.
 
 By default, \fBwcurl\fP does:
 .IP "* Percent-encode whitespace in URLs;"
@@ -86,13 +91,13 @@ When using parameter expansion markers, enclose the curl options in single quote
 to prevent shell interpretation. The \fI.wcurlrc\fP file is created with permissions
 600 (owner read/write only) for security.
 .IP "-r, --run-save, --run-save=\<NAME\>"
-Run a saved curl call from \fI$HOME/.wcurlrc\fP. For saved calls without parameter
-expansion, the saved options are applied to the URLs provided. For saved calls
-with parameter expansion markers (\fI!1\fP, \fI!2\fP, \fI!3\fP, etc.), you must provide the
-exact number of parameters required by the highest marker number. When using
-parameter expansion, only one \fB\--run\-save\fP call can be used per command, and
-the command executes curl directly with the expanded options. Parameters are
-provided as separate arguments following the \fB\--run\-save\fP option.
+Run a saved curl call from \fI$HOME/.wcurlrc\fP. Executes curl directly with only
+the saved options—wcurl defaults are not applied. For calls without parameter
+expansion, the saved options apply to each URL provided. For calls with
+parameter expansion markers (\fI!1\fP, \fI!2\fP, \fI!3\fP, etc.), you must provide the
+exact number of parameters required by the highest marker number. Any
+additional arguments after the saved call name (or parameters) are passed
+directly to curl.
 .IP --list-save
 Output the name and the option combination for each name from \fI$HOME/.wcurlrc\fP
 that have been saved for later reuse.

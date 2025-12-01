@@ -12,7 +12,7 @@ Added-in: n/a
 
 # NAME
 
-**wcurl** - a simple wrapper around curl to easily download files.
+**wcurl** - a simple wrapper around curl to easily download files, and reuse curl calls.
 
 # SYNOPSIS
 
@@ -32,8 +32,8 @@ Added-in: n/a
 
 # DESCRIPTION
 
-**wcurl** is a simple curl wrapper which lets you use curl to download files
-without having to remember any parameters.
+**wcurl** is a simple curl wrapper which lets you use curl to download files or
+reuse complex curl calls without having to remember any parameters.
 
 Simply call **wcurl** with a list of URLs you want to download and **wcurl**
 picks sane defaults.
@@ -41,6 +41,11 @@ picks sane defaults.
 If you need anything more complex, you can provide any of curl's supported
 parameters via the **--curl-options** option. Just beware that you likely
 should be using curl directly if your use case is not covered.
+
+When using **-r** or **--run-save** to execute a saved curl call, wcurl's default
+behavior is disabled. Instead, curl is invoked directly with only the saved
+options, allowing you to reuse exact curl command combinations without any
+added defaults.
 
 By default, **wcurl** does:
 
@@ -113,13 +118,13 @@ created with permissions 600 (owner read/write only) for security.
 
 ## -r, --run-save, --run-save=\<NAME\>
 
-Run a saved curl call from `$HOME/.wcurlrc`. For saved calls without parameter
-expansion, the saved options are applied to the URLs provided. For saved calls
-with parameter expansion markers (`!1`, `!2`, `!3`, etc.), you must provide the
-exact number of parameters required by the highest marker number. When using
-parameter expansion, only one **--run-save** call can be used per command, and
-the command executes curl directly with the expanded options. Parameters are
-provided as separate arguments following the **--run-save** option.
+Run a saved curl call from `\$HOME/.wcurlrc`. Executes curl directly with only
+the saved options—wcurl defaults are not applied. For calls without parameter
+expansion, the saved options apply to each URL provided. For calls with
+parameter expansion markers (`!1`, `!2`, `!3`, etc.), you must provide the
+exact number of parameters required by the highest marker number. Any
+additional arguments after the saved call name (or parameters) are passed
+directly to curl.
 
 ## --list-save
 

@@ -81,13 +81,11 @@ Options:
                                      parameter expansion markers, enclose the curl options in single
                                      quotes to prevent shell interpretation.
 
-  -r, --run-save <NAME>: Run a saved curl call from $HOME/.wcurlrc. For saved calls without
-                         parameter expansion, the saved options are applied to the URLs provided.
-                         For saved calls with parameter expansion markers (!1, !2, !3, etc.), you
-                         must provide the exact number of parameters required by the highest marker
-                         number. When using parameter expansion, only one --run-save call can be used
-                         per command, and the command executes curl directly with the expanded options.
-                         Parameters are provided as separate arguments following the --run-save option.
+  -r, --run-save <NAME>: Run a saved curl call from \$HOME/.wcurlrc. Executes curl directly
+                         with ONLY the saved options (wcurl defaults are not applied). For saved calls
+                         with parameter expansion markers (!1, !2, !3, etc.), you must provide the
+                         exact number of parameters required by the highest marker number. Any additional
+                         arguments after the saved call name (or parameters) are passed to curl.
 
   --list-save: Output the name and the option combination for each name from $HOME/.wcurlrc
                that have been saved for later reuse.
@@ -574,13 +572,15 @@ for arg in "$@"; do
                     i=$((i - 1))
                 done
 
-                # Execute curl directly - use sh -c with proper quoting to avoid eval
+                # Execute curl directly - use eval to properly handle escape sequences
+                # Double backslashes in expanded options for proper curl interpretation
+                expanded_opts_escaped=$(printf "%s" "${expanded_opts}" | sed 's/\\/\\\\/g')
                 # If --dry-run was detected, just show the command instead
                 if [ "${has_dry_run}" = "true" ]; then
-                    printf "curl %s\n" "${expanded_opts}"
+                    printf "curl %s\n" "${expanded_opts_escaped}"
                     exit 0
                 else
-                    sh -c "curl ${expanded_opts}"
+                    eval curl ${expanded_opts_escaped}
                     exit $?
                 fi
             fi
@@ -600,7 +600,110 @@ for arg in "$@"; do
 done
 
 if [ "${has_run_option}" = "true" ]; then
-    # Expand -r/--run-save options to --curl-options (non-parameter expansion case)
+    # Execute saved call directly without wcurl defaults (non-parameter expansion case)
+    # Extract the saved call name and remaining args
+    for arg in "$@"; do
+        case "${arg}" in
+            -r=*|--run-save=*)
+                run_value=$(printf "%s\n" "${arg}" | sed 's/^\(-r\|--run-save\)=//')
+                saved=$(get_saved_call "${run_value}" 2>/dev/null || true)
+                
+                if [ -n "${saved}" ]; then
+                    # Check for --dry-run in arguments
+                    has_dry_run="false"
+                    for check_arg in "$@"; do
+                        case "${check_arg}" in
+                            --dry-run)
+                                has_dry_run="true"
+                                ;;
+                        esac
+                    done
+                    
+                    # Collect remaining arguments (skip -r/--run-save and --dry-run)
+                    # Separate URLs from curl options
+                    remaining_args=""
+                    urls_only=""
+                    curl_opts=""
+                    skip_next=0
+                    for check_arg in "$@"; do
+                        if [ "${skip_next}" -eq 1 ]; then
+                            curl_opts="${curl_opts} ${check_arg}"
+                            skip_next=0
+                            continue
+                        fi
+                        case "${check_arg}" in
+                            -r=*|--run-save=*|--dry-run)
+                                # Skip these
+                                ;;
+                            -o|-O|--output)
+                                # Next arg is the output file
+                                curl_opts="${curl_opts} ${check_arg}"
+                                skip_next=1
+                                ;;
+                            -o*|-O*)
+                                # -ofile.txt format
+                                curl_opts="${curl_opts} ${check_arg}"
+                                ;;
+                            --output=*)
+                                # --output=file.txt format
+                                curl_opts="${curl_opts} ${check_arg}"
+                                ;;
+                            -*)
+                                # Other curl options
+                                curl_opts="${curl_opts} ${check_arg}"
+                                ;;
+                            *)
+                                # Assume it's a URL
+                                urls_only="${urls_only} ${check_arg}"
+                                ;;
+                        esac
+                    done
+                    
+                    # Execute curl directly with saved options for each URL
+                    # Double backslashes in saved options for proper curl interpretation
+                    saved_escaped=$(printf "%s" "${saved}" | sed 's/\\/\\\\/g')
+                    
+                    # Build command with saved options repeated for each URL using --next
+                    # shellcheck disable=SC2086
+                    set -- ${urls_only}
+                    if [ "$#" -eq 0 ]; then
+                        error "No URLs provided for saved call '${run_value}'"
+                    fi
+                    
+                    # For single URL, just append curl options
+                    # For multiple URLs, need to handle differently based on whether output is specified
+                    if [ "$#" -eq 1 ]; then
+                        curl_cmd="${saved_escaped}${curl_opts} ${1}"
+                    else
+                        # Multiple URLs - apply saved options to each with --next
+                        curl_cmd="${saved_escaped}${curl_opts} ${1}"
+                        shift
+                        while [ "$#" -gt 0 ]; do
+                            curl_cmd="${curl_cmd} --next ${saved_escaped}${curl_opts} ${1}"
+                            shift
+                        done
+                    fi
+                    
+                    if [ "${has_dry_run}" = "true" ]; then
+                        printf "curl %s\n" "${curl_cmd}"
+                        exit 0
+                    else
+                        # Use eval to properly handle escape sequences in saved options
+                        # shellcheck disable=SC2086
+                        eval curl ${curl_cmd}
+                        exit $?
+                    fi
+                else
+                    # Saved call not found - treat as literal value (backward compatibility)
+                    # Fall through to normal processing
+                    break
+                fi
+                ;;
+        esac
+    done
+    
+    # If we get here, saved call was not found - treat as literal
+    # Expand -r/--run-save options to --curl-options (backward compatibility)
     expanded_args=$(preprocess_run_options "$@")
     # Reset positional parameters
     # shellcheck disable=SC2086
