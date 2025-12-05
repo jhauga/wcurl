@@ -36,7 +36,7 @@ sudo mandb
 
 **wcurl**
 
-* a simple wrapper around curl to easily download files.
+* a simple wrapper around curl to easily download files, and reuse curl calls.
 
 # Synopsis
 
@@ -44,14 +44,16 @@ sudo mandb
 wcurl <URL>...
 wcurl [--curl-options <CURL_OPTIONS>]... [--no-decode-filename] [-o|-O|--output <PATH>] [--dry-run] [--] <URL>...
 wcurl [--curl-options=<CURL_OPTIONS>]... [--no-decode-filename] [--output=<PATH>] [--dry-run] [--] <URL>...
+wcurl [--save-call=<NAME>:<CURL_OPTIONS>]... [--list-save] [--rm-save=<NAME>]
+wcurl [-r|--run-save=<NAME>] <URL>...
 wcurl -V|--version
 wcurl -h|--help
 ```
 
 # Description
 
-**wcurl** is a simple curl wrapper which lets you use curl to download files
-without having to remember any parameters.
+**wcurl** is a simple curl wrapper which lets you use curl to download files or
+reuse complex curl calls without having to remember any parameters.
 
 Simply call **wcurl** with a list of URLs you want to download and **wcurl** picks
 sane defaults.
@@ -59,6 +61,11 @@ sane defaults.
 If you need anything more complex, you can provide any of curl's supported
 parameters via the `--curl-options` option. Just beware that you likely
 should be using curl directly if your use case is not covered.
+
+When using `-r` or `--run-save` to execute a saved curl call, wcurl's default
+behavior is disabled. Instead, curl is invoked directly with only the saved
+options, allowing you to reuse exact curl command combinations without any
+added defaults.
 
 * By default, **wcurl** does:
   * Percent-encode whitespace in URLs;
@@ -94,6 +101,22 @@ should be using curl directly if your use case is not covered.
 * `--dry-run`
 
   Do not actually execute curl, just print what would be invoked.
+
+* `--save-call=<NAME>:<CURL_OPTIONS>`
+
+  Save a curl call to `$HOME/.wcurlrc` for reuse. Name must contain only alphanumeric characters, dashes, and underscores. Supports parameter expansion using `!1`, `!2`, `!3` as placeholders.
+
+* `-r, --run-save=<NAME>`
+
+  Run a saved curl call from `\$HOME/.wcurlrc`. Executes curl directly with only the saved options—wcurl defaults are not applied. For calls without parameter expansion, the saved options apply to each URL provided. For calls with parameter expansion markers (`!1`, `!2`, etc.), provide the required parameters as separate arguments. Any additional arguments are passed directly to curl.
+
+* `--list-save`
+
+  List all saved curl calls.
+
+* `--rm-save=<NAME>`
+
+  Remove a saved curl call.
 
 * `-V, --version`
 
@@ -144,6 +167,25 @@ then performs the parsing. May be specified more than once.
 
   ```sh
   wcurl --curl-options="--parallel-max-host 0" example.com/filename1.txt example.com/filename2.txt
+  ```
+
+* Save curl options for reuse:
+
+  ```sh
+  wcurl --save-call=quiet:"--silent --show-error"
+  ```
+
+* Use a saved call:
+
+  ```sh
+  wcurl --run-save=quiet example.com/file.txt
+  ```
+
+* Save with parameter expansion:
+
+  ```sh
+  wcurl --save-call=getFile:'-o !1 !2'
+  wcurl -r=getFile output.txt example.com/file.txt
   ```
 
 # Running the testsuite
